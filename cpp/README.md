@@ -239,4 +239,6 @@ Core principles:
 
 ---
 
+**Copyright © 2025 Fortified Solutions Inc.**
+
 **Fortified Solutions Inc. - Building the Foundation for Trustworthy AI**
