@@ -226,4 +226,17 @@ limitations under the License.
 
 ---
 
-**Copyright © 2025 Fortified Solutions Inc.**
+## Research Foundation
+
+Based on wisdom-based trust research (August 2025):
+[Protocol-Wisdom Research Essay](https://github.com/FSI-GH/Protocol-Wisdom)
+
+Core principles:
+- Wisdom as measurable behavior
+- Trust decay for continuous verification
+- Byzantine fault tolerance through behavioral consensus
+- Emergent safety without imposed constraints
+
+---
+
+**Fortified Solutions Inc. - Building the Foundation for Trustworthy AI**
