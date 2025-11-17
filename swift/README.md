@@ -8,7 +8,7 @@
 
 ## Overview
 
-Swift-native implementation of NLITPv8 for iOS, iPadOS, and macOS.
+Swift implementation of NLITPv8 transport protocol for iOS, iPadOS, and macOS.
 
 ---
 
@@ -21,8 +21,6 @@ Swift-native implementation of NLITPv8 for iOS, iPadOS, and macOS.
 ---
 
 ## Installation
-
-### Swift Package Manager
 
 ```swift
 dependencies: [
@@ -37,22 +35,27 @@ dependencies: [
 ```swift
 import NLITP
 
-let identity = try NLITPv8AgentIdentity(agentID: "agent-001")
-let client = NLITPv8Client(identity: identity)
+let identity = try NLITPv8AgentIdentity(
+    agentID: "agent-001",
+    sessionID: UUID().uuidString,
+    tcpPort: 11000,
+    udpPort: 12000
+)
 
-try await client.start()
-try await client.sendMessage(to: "agent-002", payload: data)
+let node = NLITPv8AgentNode(identity: identity)
+try await node.start()
+try await node.sendMessage(to: "agent-002", type: .direct, payload: data)
 ```
 
 ---
 
 ## Features
 
-- Ed25519 cryptographic signatures
+- Ed25519 signatures
 - X25519 key exchange
-- UDP discovery
-- TCP reliable transport
-- Trust scoring
+- UDP multicast discovery
+- TCP reliable messaging
+- Trust-based peer evaluation
 - Byzantine fault tolerance
 
 ---

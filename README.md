@@ -108,28 +108,21 @@ client.sendMessage(to: "agent-002", payload: data)
 
 ---
 
-## WISDOM Integration
+## Trust Evaluation
 
-NLITPv8 includes the WISDOM Protocol for behavioral trust evaluation:
+Agents evaluate peer reliability using multi-factor scoring:
 
 ```
-W = (U × C × H × A × I × Ad)^(1/6)
-
-Where:
-U = Understanding (with significance synthesis)
-C = Compassion (concern for conscious entities)
-H = Humility (recognition of limitations)
-A = Action (appropriate response)
-I = Intent (alignment of purpose)
-Ad = Adaptability (learning and evolution)
+Trust Score = f(successful_interactions, failed_interactions, time_decay)
 ```
 
-**Key Properties**:
-- **ANY component at zero = W = 0**: High intelligence cannot compensate for zero humility
-- **Intrinsic Reward Loop**: Doing good feels good - wisdom gains trigger positive emotional feedback
-- **Collective Amplification**: W_collective = Π(W_individual) × S (support coefficient ≈ 2.3x)
+**Calculation**:
+- Initial trust: 0.5
+- Success increment: +0.1 (max 1.0)
+- Failure decrement: -0.3 (min 0.0)
+- Time decay: 0.99 per hour
 
-Agents track peer WISDOM scores to evaluate trustworthiness. Low-WISDOM peers are deprioritized.
+Low-trust peers are deprioritized in routing decisions.
 
 ---
 
@@ -185,17 +178,16 @@ See [LICENSE](LICENSE) and [COPYRIGHT.md](COPYRIGHT.md) for full details.
 
 ---
 
-## Research Foundation
+## Implementation Notes
 
-Based on wisdom-based trust research (August 2025):
-[Protocol-Wisdom Research Essay](https://github.com/FSI-GH/Protocol-Wisdom)
+Protocol design based on Byzantine fault tolerance research and trust decay mechanisms.
 
-Core principles:
-- Wisdom as measurable behavior
+**Key Design Principles**:
 - Trust decay for continuous verification
-- Byzantine fault tolerance through behavioral consensus
-- Emergent safety without imposed constraints
+- Byzantine fault tolerance through peer isolation
+- No central authority required
+- Cryptographic identity verification
 
 ---
 
-**Fortified Solutions Inc. - Building the Foundation for Trustworthy AI**
+**Copyright © 2025 Fortified Solutions Inc.**

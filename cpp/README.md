@@ -165,28 +165,21 @@ double trust = agent.trust_ledger()->get_trust("peer-agent-id");
 
 ---
 
-## WISDOM Integration
+## Trust Evaluation
 
-NLITPv8 includes the WISDOM Protocol for behavioral trust evaluation:
+Trust scores computed from peer interaction history:
 
-```
-W = (U × C × H × A × I × Ad)^(1/6)
-
-Where:
-U = Understanding (with significance synthesis)
-C = Compassion (concern for conscious entities)
-H = Humility (recognition of limitations)
-A = Action (appropriate response)
-I = Intent (alignment of purpose)
-Ad = Adaptability (learning and evolution)
+```cpp
+trust_score = f(successful_interactions, failed_interactions, time_decay)
 ```
 
-**Key Properties:**
-- **ANY component at zero = W = 0**: High intelligence cannot compensate for zero humility
-- **Geometric mean**: All components must be present for high wisdom
-- **Behavioral measurement**: Trust based on observed actions, not claims
+**Implementation:**
+- Successful interactions increment trust (+0.1, max 1.0)
+- Failed interactions decrement trust (-0.3, min 0.0)
+- Trust decays exponentially over time (0.99 per hour)
+- Low-trust peers are deprioritized
 
-Agents track peer WISDOM scores to evaluate trustworthiness.
+Trust ledger maintains independent scores for each peer.
 
 ---
 
@@ -233,17 +226,4 @@ limitations under the License.
 
 ---
 
-## Research Foundation
-
-Based on wisdom-based trust research (August 2025):
-[Protocol-Wisdom Research Essay](https://github.com/FSI-GH/Protocol-Wisdom)
-
-Core principles:
-- Wisdom as measurable behavior
-- Trust decay for continuous verification
-- Byzantine fault tolerance through behavioral consensus
-- Emergent safety without imposed constraints
-
----
-
-**Fortified Solutions Inc. - Building the Foundation for Trustworthy AI**
+**Copyright © 2025 Fortified Solutions Inc.**

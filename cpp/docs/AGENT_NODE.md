@@ -13,7 +13,7 @@ AgentNode coordinates the following subsystems:
 1. **AgentIdentity** - Cryptographic identity management (Ed25519 + X25519)
 2. **AgentDiscovery** - UDP multicast peer discovery
 3. **DecentralizedMessenger** - End-to-end encrypted messaging
-4. **TrustLedger** - Blockchain-based trust management
+4. **TrustLedger** - Trust score management with time decay
 5. **RateLimiter** - DoS protection via token bucket algorithm
 6. **MessageReplayProtection** - Replay attack prevention
 7. **PortAllocator** - Network port management
