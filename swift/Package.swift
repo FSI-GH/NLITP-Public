@@ -9,8 +9,7 @@ let package = Package(
     name: "NLITP",
     platforms: [
         .macOS(.v12),
-        .iOS(.v15),
-        .iPadOS(.v15)
+        .iOS(.v15)
     ],
     products: [
         .library(

@@ -247,8 +247,9 @@ public struct NLITPv8Message: Sendable, Codable {
     public let sourceSessionID: String
     public let destinationAgentID: String?
     public let timestamp: TimeInterval
-    public let payload: [String: String] // Simplified for Codable compliance
+    public var payload: [String: String] // Mutable for decryption - Simplified for Codable compliance
     public var signature: String?
+    public var encrypted: Bool = false
 
     public init(
         messageType: NLITPv8MessageType,
@@ -264,6 +265,7 @@ public struct NLITPv8Message: Sendable, Codable {
         self.timestamp = Date().timeIntervalSince1970
         self.payload = payload
         self.signature = nil
+        self.encrypted = false
     }
 }
 
@@ -454,7 +456,68 @@ public actor NLITPv8AgentNode {
         #endif
     }
 
-    /// Send direct message to peer
+    // MARK: - Encryption Methods
+
+    /// Derive shared secret using X25519 key exchange
+    private func deriveSharedSecret(
+        peerExchangePublicKey: Data
+    ) throws -> SymmetricKey {
+        let peerPublicKey = try Curve25519.KeyAgreement.PublicKey(rawRepresentation: peerExchangePublicKey)
+        let sharedSecret = try identity.exchangeKey.sharedSecretFromKeyAgreement(with: peerPublicKey)
+        return sharedSecret.withUnsafeBytes { bytes in
+            SymmetricKey(data: bytes)
+        }
+    }
+
+    /// Encrypt payload using ChaCha20-Poly1305
+    private func encryptPayload(
+        _ payload: [String: String],
+        withSharedSecret sharedSecret: SymmetricKey
+    ) throws -> [String: String] {
+        let payloadData = try JSONEncoder().encode(payload)
+        let nonce = ChaChaPoly.Nonce()
+        let sealedBox = try ChaChaPoly.seal(payloadData, using: sharedSecret, nonce: nonce)
+
+        // Combine nonce + ciphertext + tag for transmission
+        var encryptedData = Data(nonce.withUnsafeBytes { Data($0) })
+        encryptedData.append(sealedBox.ciphertext)
+        encryptedData.append(sealedBox.tag)
+
+        return [
+            "encrypted_data": encryptedData.base64EncodedString()
+        ]
+    }
+
+    /// Decrypt payload using ChaCha20-Poly1305
+    private func decryptPayload(
+        _ encryptedPayload: [String: String],
+        withSharedSecret sharedSecret: SymmetricKey
+    ) throws -> [String: String] {
+        guard let encryptedDataBase64 = encryptedPayload["encrypted_data"],
+              let encryptedData = Data(base64Encoded: encryptedDataBase64) else {
+            throw NLITPv8Error.cryptographyFailed("Invalid encrypted payload format")
+        }
+
+        // Extract components (nonce: 12 bytes, tag: 16 bytes, rest is ciphertext)
+        guard encryptedData.count > 28 else {
+            throw NLITPv8Error.cryptographyFailed("Encrypted data too short")
+        }
+
+        let nonceBytes = encryptedData.subdata(in: 0..<12)
+        let ciphertextStart = 12
+        let ciphertextEnd = encryptedData.count - 16
+        let ciphertext = encryptedData.subdata(in: ciphertextStart..<ciphertextEnd)
+        let tag = encryptedData.subdata(in: ciphertextEnd..<encryptedData.count)
+
+        let nonce = try ChaChaPoly.Nonce(data: nonceBytes)
+        let sealedBox = try ChaChaPoly.SealedBox(nonce: nonce, ciphertext: ciphertext, tag: tag)
+        let decryptedData = try ChaChaPoly.open(sealedBox, using: sharedSecret)
+        let payload = try JSONDecoder().decode([String: String].self, from: decryptedData)
+
+        return payload
+    }
+
+    /// Send direct message to peer (UDP fast path with TCP fallback)
     public func sendMessage(
         to destinationAgentID: String,
         payload: [String: String],
@@ -464,23 +527,49 @@ public actor NLITPv8AgentNode {
             throw NLITPv8Error.peerNotFound(destinationAgentID)
         }
 
+        // Derive shared secret using X25519 key exchange
+        let sharedSecret = try deriveSharedSecret(peerExchangePublicKey: peer.exchangePublicKey)
+
+        // Encrypt payload BEFORE creating message
+        let encryptedPayload = try encryptPayload(payload, withSharedSecret: sharedSecret)
+
         var message = NLITPv8Message(
             messageType: messageType,
             sourceAgentID: identity.agentID,
             sourceSessionID: identity.sessionID,
             destinationAgentID: destinationAgentID,
-            payload: payload
+            payload: encryptedPayload
         )
+        message.encrypted = true
 
-        // Sign message
+        // Sign entire message (with encrypted payload)
         let messageData = try JSONEncoder().encode(message)
         let signature = try identity.signingKey.signature(for: messageData)
         message.signature = signature.base64EncodedString()
 
         #if canImport(Network)
-        // Establish TCP connection to peer
+        // Determine transport: UDP fast path (< 65KB) or TCP fallback
+        let encoder = JSONEncoder()
+        let encodedMessage = try encoder.encode(message)
+        let messageSize = encodedMessage.count
+
+        if messageSize < 65000 {
+            // Try UDP fast path
+            do {
+                try await sendUDPMessage(message, to: peer)
+                print("NLITPv8: Sent encrypted message to \(destinationAgentID) via UDP (\(messageSize) bytes)")
+                return
+            } catch {
+                print("NLITPv8: UDP send failed, falling back to TCP: \(error.localizedDescription)")
+                // Fall through to TCP fallback
+            }
+        } else {
+            print("NLITPv8: Message size \(messageSize) >= 65KB, using TCP fallback")
+        }
+
+        // TCP fallback for large messages or UDP failure
         try await sendTCPMessage(message, to: peer)
-        print("NLITPv8: Sent message to \(destinationAgentID)")
+        print("NLITPv8: Sent encrypted message to \(destinationAgentID) via TCP fallback (\(messageSize) bytes)")
         #else
         print("NLITPv8: Network framework not available - message not sent")
         throw NLITPv8Error.networkError("Network framework not available")
@@ -717,6 +806,43 @@ public actor NLITPv8AgentNode {
         })
     }
 
+    /// Send UDP message to peer (fast path for messages < 65KB)
+    private func sendUDPMessage(_ message: NLITPv8Message, to peer: NLITPv8PeerInfo) async throws {
+        let host = NWEndpoint.Host("127.0.0.1") // Localhost for now
+        guard let port = NWEndpoint.Port(rawValue: peer.udpPort) else {
+            throw NLITPv8Error.networkError("Peer UDP port \(peer.udpPort) is invalid")
+        }
+
+        let connection = NWConnection(
+            host: host,
+            port: port,
+            using: .udp
+        )
+
+        connection.stateUpdateHandler = { state in
+            if case .failed(let error) = state {
+                print("NLITPv8: UDP connection to \(peer.agentID) failed: \(error.localizedDescription)")
+            }
+        }
+
+        connection.start(queue: .global(qos: .userInitiated))
+
+        // Wait for connection to be ready
+        try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+
+        // Encode and send message
+        let encoder = JSONEncoder()
+        let messageData = try encoder.encode(message)
+
+        // Use sendMessage for UDP (no length prefix required)
+        connection.send(content: messageData, completion: .contentProcessed { error in
+            if let error = error {
+                print("NLITPv8: UDP message send failed: \(error.localizedDescription)")
+            }
+            connection.cancel()
+        })
+    }
+
     /// Send TCP message to peer
     private func sendTCPMessage(_ message: NLITPv8Message, to peer: NLITPv8PeerInfo) async throws {
         let host = NWEndpoint.Host("127.0.0.1") // Localhost for now
@@ -773,7 +899,7 @@ public actor NLITPv8AgentNode {
     private func processReceivedMessage(_ data: Data) async {
         do {
             let decoder = JSONDecoder()
-            let message = try decoder.decode(NLITPv8Message.self, from: data)
+            var message = try decoder.decode(NLITPv8Message.self, from: data)
 
             // Verify signature if present
             if let signature = message.signature {
@@ -795,6 +921,24 @@ public actor NLITPv8AgentNode {
                     print("NLITPv8: Message signature verification failed - invalid signature")
                     return
                 }
+            }
+
+            // Decrypt payload if message is encrypted
+            if message.encrypted {
+                guard let peer = peers[message.sourceAgentID] else {
+                    print("NLITPv8: Cannot decrypt message - unknown peer")
+                    return
+                }
+
+                // Derive shared secret using peer's X25519 public key
+                let sharedSecret = try deriveSharedSecret(peerExchangePublicKey: peer.exchangePublicKey)
+
+                // Decrypt the payload
+                let decryptedPayload = try decryptPayload(message.payload, withSharedSecret: sharedSecret)
+                message.payload = decryptedPayload
+                message.encrypted = false
+
+                print("NLITPv8: Decrypted message from \(message.sourceAgentID)")
             }
 
             // Process message based on type

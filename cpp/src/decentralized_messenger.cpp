@@ -446,8 +446,35 @@ std::optional<std::string> DecentralizedMessenger::send_message_typed(
         // Create message
         Message message = create_message(message_type, final_payload, peer_id);
 
-        // Send via TCP
-        if (send_tcp_message(message, session.peer_host, session.peer_port)) {
+        // Serialize message to determine size
+        auto message_json = message.to_json();
+        size_t message_size = message_json.size();
+
+        // Try UDP fast path for messages < 65KB
+        bool send_success = false;
+        if (message_size < 65000) {
+            utilities::log_info("Attempting UDP fast path for message to " + peer_id +
+                              " (size: " + std::to_string(message_size) + " bytes)");
+            if (send_udp_message(message, session.peer_host, session.peer_port)) {
+                utilities::log_info("Message sent via UDP to " + peer_id);
+                send_success = true;
+            } else {
+                utilities::log_info("UDP send failed, falling back to TCP for " + peer_id);
+            }
+        } else {
+            utilities::log_info("Message size (" + std::to_string(message_size) +
+                              " bytes) exceeds UDP threshold, using TCP for " + peer_id);
+        }
+
+        // TCP fallback if UDP wasn't attempted or failed
+        if (!send_success) {
+            if (send_tcp_message(message, session.peer_host, session.peer_port)) {
+                utilities::log_info("Message sent via TCP to " + peer_id);
+                send_success = true;
+            }
+        }
+
+        if (send_success) {
             // Update last activity
             {
                 std::lock_guard<std::mutex> lock(sessions_mutex_);
@@ -974,7 +1001,7 @@ void DecentralizedMessenger::process_file_offer(
 
 void DecentralizedMessenger::process_file_chunk(
     const FileChunk& chunk,
-    const Message& message
+    [[maybe_unused]] const Message& message
 ) {
     std::lock_guard<std::mutex> lock(transfers_mutex_);
 
@@ -1023,7 +1050,7 @@ bool DecentralizedMessenger::send_udp_message(
 ) {
     try {
         asio::ip::udp::endpoint endpoint(
-            asio::ip::address::from_string(host),
+            asio::ip::make_address(host),
             port
         );
 
@@ -1052,7 +1079,7 @@ bool DecentralizedMessenger::send_tcp_message(
     try {
         asio::ip::tcp::socket socket(io_context_);
         asio::ip::tcp::endpoint endpoint(
-            asio::ip::address::from_string(host),
+            asio::ip::make_address(host),
             port
         );
 
@@ -1206,7 +1233,7 @@ void DecentralizedMessenger::cleanup_stale_transfers() {
             now - it->second.start_time
         ).count();
 
-        if (elapsed > TRANSFER_TIMEOUT_SECONDS) {
+        if (elapsed > static_cast<long long>(TRANSFER_TIMEOUT_SECONDS)) {
             utilities::log_info("File transfer timeout: " + it->first);
             it = file_transfers_.erase(it);
         } else {

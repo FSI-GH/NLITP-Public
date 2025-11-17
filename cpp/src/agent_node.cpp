@@ -97,7 +97,6 @@ bool AgentNode::start() {
         // Start messenger
         if (!messenger_->start()) {
             log_error("AgentNode: Failed to start messenger");
-            discovery_->stop();
             return false;
         }
         log_info("AgentNode: Messenger started on port " + std::to_string(allocated_port_));
@@ -785,7 +784,7 @@ void AgentNode::handle_message_received(const Message& message) {
     }
 }
 
-void AgentNode::handle_session_event(const std::string& session_id, const std::string& peer_id, bool success) {
+void AgentNode::handle_session_event([[maybe_unused]] const std::string& session_id, const std::string& peer_id, bool success) {
     if (success) {
         log_info("AgentNode: Session established with " + peer_id);
 
@@ -813,7 +812,7 @@ void AgentNode::update_peer_connection(const PeerInfo& peer) {
     std::lock_guard<std::mutex> lock(peers_mutex_);
 
     auto now = std::chrono::steady_clock::now();
-    auto last_seen = std::chrono::duration_cast<std::chrono::seconds>(now - peer.last_seen).count();
+    [[maybe_unused]] auto last_seen = std::chrono::duration_cast<std::chrono::seconds>(now - peer.last_seen).count();
 
     auto it = peers_.find(peer.agent_id);
     if (it != peers_.end()) {
@@ -839,7 +838,7 @@ size_t AgentNode::cleanup_stale_peers() {
     std::lock_guard<std::mutex> lock(peers_mutex_);
 
     auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-    auto timeout = 300; // 5 minutes
+    auto timeout = static_cast<uint64_t>(300); // 5 minutes
 
     size_t removed = 0;
     for (auto it = peers_.begin(); it != peers_.end();) {
