@@ -281,64 +281,6 @@ TEST_F(AgentIdentityTest, RemoveNonExistentIdentity) {
 }
 
 // ============================================================================
-// JSON Serialization Tests
-// ============================================================================
-
-TEST_F(AgentIdentityTest, ExportToJson) {
-    AgentIdentity identity("test_agent");
-    std::string json = identity.to_json();
-
-    EXPECT_FALSE(json.empty());
-    EXPECT_NE(json.find("test_agent"), std::string::npos);
-}
-
-TEST_F(AgentIdentityTest, ImportFromJson) {
-    AgentIdentity original("test_agent");
-    std::string json = original.to_json();
-
-    auto imported = AgentIdentity::from_json(json);
-    ASSERT_TRUE(imported.has_value());
-
-    EXPECT_EQ(imported->get_agent_id(), "test_agent");
-    EXPECT_EQ(imported->get_signature_public_key(), original.get_signature_public_key());
-    EXPECT_EQ(imported->get_encryption_public_key(), original.get_encryption_public_key());
-}
-
-TEST_F(AgentIdentityTest, JsonRoundTrip) {
-    AgentIdentity original("test_agent");
-    std::vector<uint8_t> message = {1, 2, 3, 4, 5};
-    auto original_signature = original.sign(message);
-
-    // Export and import
-    std::string json = original.to_json();
-    auto imported = AgentIdentity::from_json(json);
-    ASSERT_TRUE(imported.has_value());
-
-    // Imported identity should be able to sign same way
-    auto imported_signature = imported->sign(message);
-
-    // Signatures should be verifiable with original public key
-    EXPECT_TRUE(AgentIdentity::verify(message, original_signature, original.get_signature_public_key()));
-    EXPECT_TRUE(AgentIdentity::verify(message, imported_signature, imported->get_signature_public_key()));
-}
-
-TEST_F(AgentIdentityTest, ImportInvalidJson) {
-    auto imported = AgentIdentity::from_json("invalid json");
-    EXPECT_FALSE(imported.has_value());
-}
-
-TEST_F(AgentIdentityTest, ImportEmptyJson) {
-    auto imported = AgentIdentity::from_json("");
-    EXPECT_FALSE(imported.has_value());
-}
-
-TEST_F(AgentIdentityTest, ImportIncompleteJson) {
-    auto imported = AgentIdentity::from_json("{\"agent_id\": \"test\"}");
-    // Should fail due to missing keys
-    EXPECT_FALSE(imported.has_value());
-}
-
-// ============================================================================
 // Thread Safety Tests
 // ============================================================================
 

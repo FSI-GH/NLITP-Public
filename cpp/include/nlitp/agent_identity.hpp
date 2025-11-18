@@ -137,23 +137,6 @@ public:
         const std::array<uint8_t, crypto_box_PUBLICKEYBYTES>& peer_public_key
     ) const;
 
-    // ========================================================================
-    // Serialization
-    // ========================================================================
-
-    /**
-     * @brief Export identity to JSON (includes private keys - SENSITIVE!)
-     * @return JSON string with all keys
-     */
-    std::string to_json() const;
-
-    /**
-     * @brief Import identity from JSON
-     * @param json JSON string with identity data
-     * @return AgentIdentity if successful, std::nullopt if invalid
-     */
-    static std::optional<AgentIdentity> from_json(const std::string& json);
-
 private:
     /// Agent identifier
     std::string agent_id_;

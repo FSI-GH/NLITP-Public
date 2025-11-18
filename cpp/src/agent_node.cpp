@@ -582,24 +582,21 @@ uint64_t AgentNode::get_uptime() const {
 void AgentNode::print_status() const {
     auto stats = get_stats();
 
-    // Display formatted status to console
-    std::cerr << "\nTPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPW\n";
-    std::cerr << "Q              NLITPv8 Agent Node Status                        Q\n";
-    std::cerr << "`PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPc\n";
-    std::cerr << "Q Agent ID:         " << std::left << std::setw(43) << agent_id_ << " Q\n";
-    std::cerr << "Q Port:             " << std::left << std::setw(43) << allocated_port_ << " Q\n";
-    std::cerr << "Q Status:           " << std::left << std::setw(43) << (running_ ? "RUNNING" : "STOPPED") << " Q\n";
-    std::cerr << "Q Uptime:           " << std::left << std::setw(43) << format_duration(stats.uptime_seconds) << " Q\n";
-    std::cerr << "`PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPc\n";
-    std::cerr << "Q Active Peers:     " << std::left << std::setw(43) << stats.active_peers << " Q\n";
-    std::cerr << "Q Active Sessions:  " << std::left << std::setw(43) << stats.active_sessions << " Q\n";
-    std::cerr << "Q File Transfers:   " << std::left << std::setw(43) << stats.active_transfers << " Q\n";
-    std::cerr << "`PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPc\n";
-    std::cerr << "Q Messages Sent:    " << std::left << std::setw(43) << stats.messages_sent << " Q\n";
-    std::cerr << "Q Messages Recv:    " << std::left << std::setw(43) << stats.messages_received << " Q\n";
-    std::cerr << "Q Bytes Sent:       " << std::left << std::setw(43) << format_file_size(stats.bytes_sent) << " Q\n";
-    std::cerr << "Q Bytes Recv:       " << std::left << std::setw(43) << format_file_size(stats.bytes_received) << " Q\n";
-    std::cerr << "ZPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP]\n\n";
+    std::cerr << "\n=== NLITPv8 Agent Node Status ===\n";
+    std::cerr << "Agent ID:        " << agent_id_ << "\n";
+    std::cerr << "Port:            " << allocated_port_ << "\n";
+    std::cerr << "Status:          " << (running_ ? "RUNNING" : "STOPPED") << "\n";
+    std::cerr << "Uptime:          " << format_duration(stats.uptime_seconds) << "\n";
+    std::cerr << "\n--- Network Statistics ---\n";
+    std::cerr << "Active Peers:    " << stats.active_peers << "\n";
+    std::cerr << "Active Sessions: " << stats.active_sessions << "\n";
+    std::cerr << "File Transfers:  " << stats.active_transfers << "\n";
+    std::cerr << "\n--- Message Statistics ---\n";
+    std::cerr << "Messages Sent:   " << stats.messages_sent << "\n";
+    std::cerr << "Messages Recv:   " << stats.messages_received << "\n";
+    std::cerr << "Bytes Sent:      " << format_file_size(stats.bytes_sent) << "\n";
+    std::cerr << "Bytes Recv:      " << format_file_size(stats.bytes_received) << "\n";
+    std::cerr << "=================================\n\n";
 }
 
 // ============================================================================

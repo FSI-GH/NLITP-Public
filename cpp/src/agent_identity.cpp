@@ -10,11 +10,8 @@
 
 #include "nlitp/agent_identity.hpp"
 #include "nlitp/security_config.hpp"
-#include <nlohmann/json.hpp>
 #include <fstream>
 #include <sstream>
-
-using json = nlohmann::json;
 
 namespace nlitp {
 
@@ -226,83 +223,6 @@ std::optional<SharedSecret> AgentIdentity::key_exchange(
     const std::array<uint8_t, crypto_box_PUBLICKEYBYTES>& peer_public_key
 ) const {
     return AgentCrypto::key_exchange(encryption_keypair_.secret_key, peer_public_key);
-}
-
-// ============================================================================
-// Serialization
-// ============================================================================
-
-std::string AgentIdentity::to_json() const {
-    json j;
-
-    j["agent_id"] = agent_id_;
-
-    // Signature keys (base64 encoded)
-    std::vector<uint8_t> sig_pub(signature_keypair_.public_key.begin(),
-                                 signature_keypair_.public_key.end());
-    std::vector<uint8_t> sig_sec(signature_keypair_.secret_key.begin(),
-                                 signature_keypair_.secret_key.end());
-
-    j["signature_public_key"] = AgentCrypto::bytes_to_base64(sig_pub);
-    j["signature_secret_key"] = AgentCrypto::bytes_to_base64(sig_sec);
-
-    // Encryption keys (base64 encoded)
-    std::vector<uint8_t> enc_pub(encryption_keypair_.public_key.begin(),
-                                 encryption_keypair_.public_key.end());
-    std::vector<uint8_t> enc_sec(encryption_keypair_.secret_key.begin(),
-                                 encryption_keypair_.secret_key.end());
-
-    j["encryption_public_key"] = AgentCrypto::bytes_to_base64(enc_pub);
-    j["encryption_secret_key"] = AgentCrypto::bytes_to_base64(enc_sec);
-
-    return j.dump(2);
-}
-
-std::optional<AgentIdentity> AgentIdentity::from_json(const std::string& json_str) {
-    try {
-        json j = json::parse(json_str);
-
-        // Extract agent ID
-        std::string agent_id = j["agent_id"];
-
-        // Decode signature keys
-        auto sig_pub_opt = AgentCrypto::base64_to_bytes(j["signature_public_key"]);
-        auto sig_sec_opt = AgentCrypto::base64_to_bytes(j["signature_secret_key"]);
-
-        if (!sig_pub_opt || !sig_sec_opt) {
-            return std::nullopt;
-        }
-
-        // Decode encryption keys
-        auto enc_pub_opt = AgentCrypto::base64_to_bytes(j["encryption_public_key"]);
-        auto enc_sec_opt = AgentCrypto::base64_to_bytes(j["encryption_secret_key"]);
-
-        if (!enc_pub_opt || !enc_sec_opt) {
-            return std::nullopt;
-        }
-
-        // Verify key sizes
-        if (sig_pub_opt->size() != crypto_sign_PUBLICKEYBYTES ||
-            sig_sec_opt->size() != crypto_sign_SECRETKEYBYTES ||
-            enc_pub_opt->size() != crypto_box_PUBLICKEYBYTES ||
-            enc_sec_opt->size() != crypto_box_SECRETKEYBYTES) {
-            return std::nullopt;
-        }
-
-        // Create keypairs
-        SignatureKeyPair sig_keypair;
-        std::copy(sig_pub_opt->begin(), sig_pub_opt->end(), sig_keypair.public_key.begin());
-        std::copy(sig_sec_opt->begin(), sig_sec_opt->end(), sig_keypair.secret_key.begin());
-
-        EncryptionKeyPair enc_keypair;
-        std::copy(enc_pub_opt->begin(), enc_pub_opt->end(), enc_keypair.public_key.begin());
-        std::copy(enc_sec_opt->begin(), enc_sec_opt->end(), enc_keypair.secret_key.begin());
-
-        return AgentIdentity(agent_id, sig_keypair, enc_keypair);
-
-    } catch (const std::exception&) {
-        return std::nullopt;
-    }
 }
 
 // ============================================================================
