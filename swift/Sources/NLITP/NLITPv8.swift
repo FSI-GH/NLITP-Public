@@ -9,6 +9,7 @@
 
 import Foundation
 import CryptoKit
+import Logging
 #if canImport(Network)
 import Network
 #endif
@@ -281,6 +282,7 @@ public actor NLITPv8AgentNode {
     private var peers: [String: NLITPv8PeerInfo] = [:]
     private var trustLedger: [String: NLITPv8TrustEntry] = [:]
     private var running: Bool = false
+    private let logger: Logger
 
     #if canImport(Network)
     // Network listeners (macOS/iOS only)
@@ -300,6 +302,7 @@ public actor NLITPv8AgentNode {
 
     public init(identity: NLITPv8AgentIdentity) {
         self.identity = identity
+        self.logger = Logger(label: "com.fsi.nlitp.v8.\(identity.agentID)")
     }
 
     public convenience init(
@@ -326,10 +329,12 @@ public actor NLITPv8AgentNode {
     /// Start mesh networking
     public func start() async throws {
         running = true
-        print("NLITPv8: Agent \(identity.agentID) starting mesh networking")
-        print("  TCP: \(identity.tcpPort)")
-        print("  UDP: \(identity.udpPort)")
-        print("  Discovery: \(NLITPv8Config.discoveryPort)")
+        logger.info("Agent starting mesh networking", metadata: [
+            "agentID": .string(identity.agentID),
+            "tcpPort": .stringConvertible(identity.tcpPort),
+            "udpPort": .stringConvertible(identity.udpPort),
+            "discoveryPort": .stringConvertible(NLITPv8Config.discoveryPort)
+        ])
 
         #if canImport(Network)
         // Start TCP listener for direct messages
@@ -344,9 +349,9 @@ public actor NLITPv8AgentNode {
         // Broadcast initial presence
         await broadcastPresence()
 
-        print("NLITPv8: Agent \(identity.agentID) fully operational")
+        logger.info("Agent fully operational", metadata: ["agentID": .string(identity.agentID)])
         #else
-        print("NLITPv8: Network framework not available on this platform")
+        logger.warning("Network framework not available on this platform")
         await broadcastPresence()
         #endif
     }
@@ -378,12 +383,12 @@ public actor NLITPv8AgentNode {
         discoveryConnection = nil
         #endif
 
-        print("NLITPv8: Agent \(identity.agentID) stopped")
+        logger.info("Agent stopped", metadata: ["agentID": .string(identity.agentID)])
     }
 
     /// Broadcast presence to network
     private func broadcastPresence() async {
-        print("NLITPv8: Broadcasting presence for \(identity.agentID)")
+        logger.debug("Broadcasting presence", metadata: ["agentID": .string(identity.agentID)])
 
         #if canImport(Network)
         do {
@@ -423,14 +428,14 @@ public actor NLITPv8AgentNode {
             try await sendUDPBroadcast(message)
 
         } catch {
-            print("NLITPv8: Failed to broadcast presence: \(error.localizedDescription)")
+            logger.error("Failed to broadcast presence", metadata: ["error": .string(error.localizedDescription)])
         }
         #endif
     }
 
     /// Broadcast goodbye to network
     private func broadcastGoodbye() async {
-        print("NLITPv8: Broadcasting goodbye for \(identity.agentID)")
+        logger.debug("Broadcasting goodbye", metadata: ["agentID": .string(identity.agentID)])
 
         #if canImport(Network)
         do {
@@ -451,7 +456,7 @@ public actor NLITPv8AgentNode {
             try await sendUDPBroadcast(message)
 
         } catch {
-            print("NLITPv8: Failed to broadcast goodbye: \(error.localizedDescription)")
+            logger.error("Failed to broadcast goodbye", metadata: ["error": .string(error.localizedDescription)])
         }
         #endif
     }
@@ -557,21 +562,27 @@ public actor NLITPv8AgentNode {
             // Try UDP fast path
             do {
                 try await sendUDPMessage(message, to: peer)
-                print("NLITPv8: Sent encrypted message to \(destinationAgentID) via UDP (\(messageSize) bytes)")
+                logger.debug("Sent encrypted message via UDP", metadata: [
+                    "destinationAgentID": .string(destinationAgentID),
+                    "messageSize": .stringConvertible(messageSize)
+                ])
                 return
             } catch {
-                print("NLITPv8: UDP send failed, falling back to TCP: \(error.localizedDescription)")
+                logger.debug("UDP send failed, falling back to TCP", metadata: ["error": .string(error.localizedDescription)])
                 // Fall through to TCP fallback
             }
         } else {
-            print("NLITPv8: Message size \(messageSize) >= 65KB, using TCP fallback")
+            logger.debug("Message size exceeds 65KB, using TCP fallback", metadata: ["messageSize": .stringConvertible(messageSize)])
         }
 
         // TCP fallback for large messages or UDP failure
         try await sendTCPMessage(message, to: peer)
-        print("NLITPv8: Sent encrypted message to \(destinationAgentID) via TCP fallback (\(messageSize) bytes)")
+        logger.debug("Sent encrypted message via TCP fallback", metadata: [
+            "destinationAgentID": .string(destinationAgentID),
+            "messageSize": .stringConvertible(messageSize)
+        ])
         #else
-        print("NLITPv8: Network framework not available - message not sent")
+        logger.error("Network framework not available - message not sent")
         throw NLITPv8Error.networkError("Network framework not available")
         #endif
     }
@@ -588,7 +599,7 @@ public actor NLITPv8AgentNode {
             )
         }
 
-        print("NLITPv8: Added peer \(peerInfo.agentID)")
+        logger.info("Peer added", metadata: ["peerAgentID": .string(peerInfo.agentID)])
     }
 
     /// Update peer trust score
@@ -609,7 +620,10 @@ public actor NLITPv8AgentNode {
 
         trustLedger[agentID] = trustEntry
 
-        print("NLITPv8: Updated trust for \(agentID): \(trustEntry.finalTrust)")
+        logger.debug("Updated trust score", metadata: [
+            "agentID": .string(agentID),
+            "trustScore": .stringConvertible(String(format: "%.3f", trustEntry.finalTrust))
+        ])
     }
 
     /// Get list of known peers
@@ -636,11 +650,11 @@ public actor NLITPv8AgentNode {
         listener.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
-                print("NLITPv8: TCP listener ready on port \(self?.identity.tcpPort ?? 0)")
+                self?.logger.info("TCP listener ready", metadata: ["port": .stringConvertible(self?.identity.tcpPort ?? 0)])
             case .failed(let error):
-                print("NLITPv8: TCP listener failed: \(error.localizedDescription)")
+                self?.logger.error("TCP listener failed", metadata: ["error": .string(error.localizedDescription)])
             case .cancelled:
-                print("NLITPv8: TCP listener cancelled")
+                self?.logger.info("TCP listener cancelled")
             default:
                 break
             }
@@ -658,14 +672,14 @@ public actor NLITPv8AgentNode {
 
     /// Handle incoming TCP connection
     private func handleTCPConnection(_ connection: NWConnection) async {
-        connection.stateUpdateHandler = { state in
+        connection.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
-                print("NLITPv8: TCP connection established")
+                self?.logger.info("TCP connection established")
             case .failed(let error):
-                print("NLITPv8: TCP connection failed: \(error.localizedDescription)")
+                self?.logger.error("TCP connection failed", metadata: ["error": .string(error.localizedDescription)])
             case .cancelled:
-                print("NLITPv8: TCP connection cancelled")
+                self?.logger.info("TCP connection cancelled")
             default:
                 break
             }
@@ -708,11 +722,11 @@ public actor NLITPv8AgentNode {
         listener.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
-                print("NLITPv8: UDP listener ready on port \(self?.identity.udpPort ?? 0)")
+                self?.logger.info("UDP listener ready", metadata: ["port": .stringConvertible(self?.identity.udpPort ?? 0)])
             case .failed(let error):
-                print("NLITPv8: UDP listener failed: \(error.localizedDescription)")
+                self?.logger.error("UDP listener failed", metadata: ["error": .string(error.localizedDescription)])
             case .cancelled:
-                print("NLITPv8: UDP listener cancelled")
+                self?.logger.info("UDP listener cancelled")
             default:
                 break
             }
@@ -730,9 +744,9 @@ public actor NLITPv8AgentNode {
 
     /// Handle incoming UDP connection
     private func handleUDPConnection(_ connection: NWConnection) async {
-        connection.stateUpdateHandler = { state in
+        connection.stateUpdateHandler = { [weak self] state in
             if case .failed(let error) = state {
-                print("NLITPv8: UDP connection failed: \(error.localizedDescription)")
+                self?.logger.error("UDP connection failed", metadata: ["error": .string(error.localizedDescription)])
             }
         }
 
@@ -783,9 +797,9 @@ public actor NLITPv8AgentNode {
             using: .udp
         )
 
-        connection.stateUpdateHandler = { state in
+        connection.stateUpdateHandler = { [weak self] state in
             if case .failed(let error) = state {
-                print("NLITPv8: UDP broadcast connection failed: \(error.localizedDescription)")
+                self?.logger.error("UDP broadcast connection failed", metadata: ["error": .string(error.localizedDescription)])
             }
         }
 
@@ -798,9 +812,9 @@ public actor NLITPv8AgentNode {
         let encoder = JSONEncoder()
         let messageData = try encoder.encode(message)
 
-        connection.send(content: messageData, completion: .contentProcessed { error in
+        connection.send(content: messageData, completion: .contentProcessed { [weak self] error in
             if let error = error {
-                print("NLITPv8: UDP broadcast send failed: \(error.localizedDescription)")
+                self?.logger.error("UDP broadcast send failed", metadata: ["error": .string(error.localizedDescription)])
             }
             connection.cancel()
         })
@@ -819,9 +833,12 @@ public actor NLITPv8AgentNode {
             using: .udp
         )
 
-        connection.stateUpdateHandler = { state in
+        connection.stateUpdateHandler = { [weak self] state in
             if case .failed(let error) = state {
-                print("NLITPv8: UDP connection to \(peer.agentID) failed: \(error.localizedDescription)")
+                self?.logger.error("UDP connection to peer failed", metadata: [
+                    "peerID": .string(peer.agentID),
+                    "error": .string(error.localizedDescription)
+                ])
             }
         }
 
@@ -835,9 +852,9 @@ public actor NLITPv8AgentNode {
         let messageData = try encoder.encode(message)
 
         // Use sendMessage for UDP (no length prefix required)
-        connection.send(content: messageData, completion: .contentProcessed { error in
+        connection.send(content: messageData, completion: .contentProcessed { [weak self] error in
             if let error = error {
-                print("NLITPv8: UDP message send failed: \(error.localizedDescription)")
+                self?.logger.error("UDP message send failed", metadata: ["error": .string(error.localizedDescription)])
             }
             connection.cancel()
         })
@@ -856,12 +873,15 @@ public actor NLITPv8AgentNode {
             using: .tcp
         )
 
-        connection.stateUpdateHandler = { state in
+        connection.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
-                print("NLITPv8: TCP connection to \(peer.agentID) ready")
+                self?.logger.info("TCP connection to peer ready", metadata: ["peerID": .string(peer.agentID)])
             case .failed(let error):
-                print("NLITPv8: TCP connection to \(peer.agentID) failed: \(error.localizedDescription)")
+                self?.logger.error("TCP connection to peer failed", metadata: [
+                    "peerID": .string(peer.agentID),
+                    "error": .string(error.localizedDescription)
+                ])
             default:
                 break
             }
@@ -880,16 +900,16 @@ public actor NLITPv8AgentNode {
         let length = UInt32(messageData.count).bigEndian
         let lengthData = withUnsafeBytes(of: length) { Data($0) }
 
-        connection.send(content: lengthData, completion: .contentProcessed { error in
+        connection.send(content: lengthData, completion: .contentProcessed { [weak self] error in
             if let error = error {
-                print("NLITPv8: Failed to send message length: \(error.localizedDescription)")
+                self?.logger.error("Failed to send message length", metadata: ["error": .string(error.localizedDescription)])
             }
         })
 
         // Send actual message
-        connection.send(content: messageData, completion: .contentProcessed { error in
+        connection.send(content: messageData, completion: .contentProcessed { [weak self] error in
             if let error = error {
-                print("NLITPv8: Failed to send message: \(error.localizedDescription)")
+                self?.logger.error("Failed to send message", metadata: ["error": .string(error.localizedDescription)])
             }
             connection.cancel()
         })
@@ -905,7 +925,7 @@ public actor NLITPv8AgentNode {
             if let signature = message.signature {
                 guard let peer = peers[message.sourceAgentID],
                       let signatureData = Data(base64Encoded: signature) else {
-                    print("NLITPv8: Message signature verification failed - unknown peer")
+                    logger.warning("Message signature verification failed - unknown peer", metadata: ["sourceAgentID": .string(message.sourceAgentID)])
                     return
                 }
 
@@ -918,7 +938,7 @@ public actor NLITPv8AgentNode {
                 let isValid = publicKey.isValidSignature(signatureData, for: messageData)
 
                 guard isValid else {
-                    print("NLITPv8: Message signature verification failed - invalid signature")
+                    logger.warning("Message signature verification failed - invalid signature", metadata: ["sourceAgentID": .string(message.sourceAgentID)])
                     return
                 }
             }
@@ -926,7 +946,7 @@ public actor NLITPv8AgentNode {
             // Decrypt payload if message is encrypted
             if message.encrypted {
                 guard let peer = peers[message.sourceAgentID] else {
-                    print("NLITPv8: Cannot decrypt message - unknown peer")
+                    logger.warning("Cannot decrypt message - unknown peer", metadata: ["sourceAgentID": .string(message.sourceAgentID)])
                     return
                 }
 
@@ -938,7 +958,7 @@ public actor NLITPv8AgentNode {
                 message.payload = decryptedPayload
                 message.encrypted = false
 
-                print("NLITPv8: Decrypted message from \(message.sourceAgentID)")
+                logger.debug("Message decrypted", metadata: ["sourceAgentID": .string(message.sourceAgentID)])
             }
 
             // Process message based on type
@@ -956,11 +976,11 @@ public actor NLITPv8AgentNode {
                 }
 
             default:
-                print("NLITPv8: Received message type: \(message.messageType)")
+                logger.debug("Received message type", metadata: ["messageType": .string(message.messageType)])
             }
 
         } catch {
-            print("NLITPv8: Failed to process message: \(error.localizedDescription)")
+            logger.error("Failed to process message", metadata: ["error": .string(error.localizedDescription)])
         }
     }
 
@@ -977,7 +997,7 @@ public actor NLITPv8AgentNode {
               let udpPort = UInt16(udpPortString),
               let signingPubkey = Data(base64Encoded: signingPubkeyBase64),
               let exchangePubkey = Data(base64Encoded: exchangePubkeyBase64) else {
-            print("NLITPv8: Invalid agent announce payload")
+            logger.warning("Invalid agent announce payload")
             return
         }
 
@@ -1006,7 +1026,7 @@ public actor NLITPv8AgentNode {
             await handler(peerInfo)
         }
 
-        print("NLITPv8: Discovered peer: \(agentID)")
+        logger.info("Peer discovered", metadata: ["peerID": .string(agentID)])
     }
 
     /// Handle agent goodbye message
@@ -1021,7 +1041,7 @@ public actor NLITPv8AgentNode {
             await handler(agentID)
         }
 
-        print("NLITPv8: Peer left: \(agentID)")
+        logger.info("Peer left", metadata: ["peerID": .string(agentID)])
     }
 
     #endif

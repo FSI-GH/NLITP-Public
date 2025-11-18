@@ -93,7 +93,7 @@ void initialize_logging(const std::string& log_file, LogLevel level) {
         spdlog::set_default_logger(g_logger);
 
     } catch (const spdlog::spdlog_ex& ex) {
-        fprintf(stderr, "Log initialization failed: %s\n", ex.what());
+        std::cerr << "Log initialization failed: " << ex.what() << "\n";
     }
 }
 

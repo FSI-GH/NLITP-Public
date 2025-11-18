@@ -48,3 +48,19 @@ htmlcov/
 # Temporary files
 *.tmp
 *.bak
+
+# Internal development documentation (DO NOT PUSH)
+docs/*_SPEC.md
+docs/*_INTERNAL*.md
+docs/WORKSHOP*.md
+docs/DEV_*.md
+
+# Swift build artifacts
+swift/.build/
+swift/Package.resolved
+.build/
+Package.resolved
+
+# Internal marker files
+.INTERNAL
+.RESEARCH_ONLY
