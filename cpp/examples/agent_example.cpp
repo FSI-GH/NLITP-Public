@@ -12,7 +12,6 @@
  */
 
 #include "nlitp/agent_node.hpp"
-#include "nlitp/utilities.hpp"
 #include <iostream>
 #include <thread>
 #include <chrono>
@@ -31,9 +30,7 @@ int main(int argc, char** argv) {
     std::string data_dir = argc >= 3 ? argv[2] : "";
 
     try {
-        std::cout << "╗\n";
-        std::cout << "         NLITPv8 Simple Agent Example                   \n";
-        std::cout << "╝\n\n";
+        std::cout << "\n=== NLITPv8 Simple Agent Example ===\n\n";
 
         // Create agent node
         std::cout << "Creating agent: " << agent_id << "\n";
@@ -44,14 +41,9 @@ int main(int argc, char** argv) {
         agent.start();
 
         // Get agent info
-        auto info = agent.get_info();
         std::cout << "\nAgent Info:\n";
-        std::cout << "  ID:        " << info.agent_id << "\n";
-        std::cout << "  UDP Port:  " << info.discovery_port << "\n";
-        std::cout << "  TCP Port:  " << info.messaging_port << "\n";
-        std::cout << "  Public Key: " << utilities::bytes_to_hex(
-            std::vector<uint8_t>(info.public_key.begin(), info.public_key.end())
-        ).substr(0, 16) << "...\n\n";
+        std::cout << "  ID:        " << agent.get_agent_id() << "\n";
+        std::cout << "  Port:      " << agent.get_port() << "\n\n";
 
         // Announce presence
         std::cout << "Broadcasting presence to network...\n";
@@ -78,12 +70,8 @@ int main(int argc, char** argv) {
             const auto& first_peer = peers[0];
             std::cout << "\nSending test message to " << first_peer.agent_id << "...\n";
 
-            std::vector<uint8_t> message_data(
-                std::string("Hello from " + agent_id).begin(),
-                std::string("Hello from " + agent_id).end()
-            );
-
-            agent.send_message(first_peer.agent_id, message_data);
+            std::string message_content = "Hello from " + agent_id;
+            agent.send_message(first_peer.agent_id, message_content);
             std::cout << "Message sent.\n";
         }
 

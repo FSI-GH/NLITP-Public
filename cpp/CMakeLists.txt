@@ -28,11 +28,17 @@ if(NOT MSVC)
         -D_FORTIFY_SOURCE=2
         -fPIE
     )
-    add_link_options(
-        -Wl,-z,relro
-        -Wl,-z,now
-        -pie
-    )
+    if(NOT APPLE)
+        # Linux-only linker flags
+        add_link_options(
+            -Wl,-z,relro
+            -Wl,-z,now
+            -pie
+        )
+    else()
+        # macOS linker flags
+        add_link_options(-Wl,-pie)
+    endif()
 endif()
 
 # Platform detection
@@ -106,6 +112,9 @@ include_directories(
     ${ASIO_INCLUDE_DIR}
 )
 
+# Link directories (critical for pkg-config found libraries on macOS)
+link_directories(${SODIUM_LIBRARY_DIRS})
+
 # Library source files
 set(NLITP_SOURCES
     src/security_config.cpp
@@ -132,6 +141,7 @@ target_link_libraries(nlitp8
         SQLite::SQLite3
         nlohmann_json::nlohmann_json
         spdlog::spdlog
+        OpenSSL::Crypto
 )
 
 target_compile_definitions(nlitp8

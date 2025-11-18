@@ -40,10 +40,10 @@ void print_mesh_status(const std::vector<std::unique_ptr<AgentNode>>& agents) {
     std::cout << "╣\n";
 
     for (const auto& agent : agents) {
-        auto info = agent->get_info();
+        auto agent_id = agent->get_agent_id();
         auto peers = agent->get_peers();
 
-        std::cout << " Agent: " << std::left << std::setw(46) << info.agent_id << "\n";
+        std::cout << " Agent: " << std::left << std::setw(46) << agent_id << "\n";
         std::cout << "   Peers:   " << std::left << std::setw(44) << peers.size() << "\n";
 
         if (!peers.empty()) {
@@ -59,7 +59,7 @@ void print_mesh_status(const std::vector<std::unique_ptr<AgentNode>>& agents) {
     std::cout << "╝\n\n";
 }
 
-int main(int argc, char** argv) {
+int main(int /* argc */, char** /* argv */) {
     // Handle Ctrl+C
     std::signal(SIGINT, signal_handler);
     std::signal(SIGTERM, signal_handler);
@@ -104,10 +104,7 @@ int main(int argc, char** argv) {
 
         // Broadcast a message from first agent
         std::cout << "Broadcasting message from " << agent_ids[0] << "...\n";
-        std::vector<uint8_t> broadcast_msg(
-            std::string("Hello mesh network!").begin(),
-            std::string("Hello mesh network!").end()
-        );
+        std::string broadcast_msg = "Hello mesh network!";
 
         auto peers = agents[0]->get_peers();
         for (const auto& peer : peers) {
