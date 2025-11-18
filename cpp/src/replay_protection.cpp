@@ -23,7 +23,9 @@ MessageReplayProtection::MessageReplayProtection(std::chrono::seconds window_sec
     : time_window_(window_seconds)
 {
     // Initialize libsodium for crypto_hash_sha256
-    sodium_init();
+    if (sodium_init() < 0) {
+        throw std::runtime_error("Failed to initialize libsodium");
+    }
 }
 
 // ============================================================================

@@ -356,7 +356,7 @@ private:
     std::shared_ptr<AgentIdentity> identity_;
 
     /// ASIO I/O context reference
-    asio::io_context& io_context_;
+    [[maybe_unused]] asio::io_context& io_context_;
 
     /// UDP socket for discovery
     asio::ip::udp::socket socket_;

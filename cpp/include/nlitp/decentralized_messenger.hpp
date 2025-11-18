@@ -388,7 +388,7 @@ private:
     uint16_t listen_port_;
 
     /// Maximum concurrent connections
-    size_t max_connections_;
+    [[maybe_unused]] size_t max_connections_;
 
     /// File transfer chunk size
     size_t chunk_size_;
